@@ -24,6 +24,7 @@ class PostFacade(
     private val postRepository: PostRepository,
     private val postLikeRepository: PostLikeRepository,
     private val eventPublisher: EventPublisher,
+    private val postStompService: PostStompService,
 ) {
     @Transactional(readOnly = true)
     fun count(): Long = postRepository.count()
@@ -138,8 +139,17 @@ class PostFacade(
     }
 
     @Transactional
-    fun incrementHit(post: Post) {
+    fun incrementHit(post: Post, actor: Member?): Boolean {
+        if (actor != null && actor.id == post.author.id) return false
+
+        val previousHitCount = post.hitCount
         post.incrementHitCount()
+
+        if (post.published && previousHitCount == 99 && post.hitCount == 100) {
+            postStompService.notifyNewPost(post)
+        }
+
+        return true
     }
 
     @Transactional(readOnly = true)
